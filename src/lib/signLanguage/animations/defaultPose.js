@@ -1,4 +1,4 @@
-// Rest-pose targets. Each entry is [boneName, axis, value].
+// Rest-pose targets for XBot (model.glb) — each entry is [boneName, axis, value].
 // Used both for snap-on-load and for comprehensive animated reset between signs.
 export const FULL_REST_TARGETS = [
   // Neck
@@ -45,14 +45,22 @@ export const FULL_REST_TARGETS = [
   ['mixamorigLeftHandPinky3', 'x', 0], ['mixamorigLeftHandPinky3', 'y', 0], ['mixamorigLeftHandPinky3', 'z', 0],
 ];
 
+// RPM (Ready Player Me) models have arm bone local-Z pointing in the opposite
+// direction (+world Z) vs XBot (-world Z). Negate arm z A-pose values so the
+// avatar lands in A-pose instead of above-head T-pose on load.
+export const FULL_REST_TARGETS_RPM = FULL_REST_TARGETS.map(([name, axis, value]) => {
+  if ((name === 'mixamorigRightArm' || name === 'mixamorigLeftArm') && axis === 'z') {
+    return [name, axis, -value];
+  }
+  return [name, axis, value];
+});
+
 const resolveBone = (ref, name) =>
   ref.avatar?.getObjectByName?.(name) || ref.bones?.[name] || null;
 
-// Snap pose — applies immediately, no animation. Sets arm z-rotation to A-pose
-// and zeroes out x/y for the main arm bones so every model starts from a known
-// state regardless of its bind pose.
-export const snapToRestPose = (ref) => {
-  for (const [name, axis, value] of FULL_REST_TARGETS) {
+// Snap pose — applies immediately, no animation.
+export const snapToRestPose = (ref, targets = FULL_REST_TARGETS) => {
+  for (const [name, axis, value] of targets) {
     const bone = resolveBone(ref, name);
     if (bone) bone.rotation[axis] = value;
   }
@@ -61,9 +69,9 @@ export const snapToRestPose = (ref) => {
 // Animated return — builds a frame of 'auto'-direction tuples for every bone
 // that has drifted from rest. Bones already at rest are skipped so the frame
 // drains instantly (no extra pause) when nothing needs fixing.
-export const defaultPose = (ref) => {
+export const defaultPose = (ref, targets = FULL_REST_TARGETS) => {
   const frame = [];
-  for (const [name, axis, value] of FULL_REST_TARGETS) {
+  for (const [name, axis, value] of targets) {
     const bone = resolveBone(ref, name);
     if (!bone) continue;
     if (Math.abs(bone.rotation[axis] - value) > 0.001) {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { defaultPose, snapToRestPose, FULL_REST_TARGETS } from '../lib/signLanguage/animations/defaultPose';
+import { defaultPose, snapToRestPose, FULL_REST_TARGETS, FULL_REST_TARGETS_RPM } from '../lib/signLanguage/animations/defaultPose';
 import * as alphabets from '../lib/signLanguage/animations/alphabets';
 import * as words from '../lib/signLanguage/animations/words';
 
@@ -60,12 +60,35 @@ const buildBoneIndex = (scene) => {
   return byName;
 };
 
+// RPM upper-arm bones have local-X and local-Z pointing opposite to XBot's.
+// Negate both the rotation limit and explicit direction so signs that move the
+// arm in XBot-space map to the same visual direction on RPM models.
+const RPM_FLIP_BONES = new Set(['mixamorigRightArm', 'mixamorigLeftArm']);
+
+const detectRPM = (byName) => Object.keys(byName).some((k) => k.includes(':'));
+
+const flipRPMArmFrames = (frames) =>
+  frames.map((frame) => {
+    // Control entries ('done'/'pause') have a string at [0], not an array — skip.
+    if (!Array.isArray(frame) || !Array.isArray(frame[0])) return frame;
+    return frame.map((tuple) => {
+      if (!Array.isArray(tuple) || tuple.length < 5) return tuple;
+      const [boneName, action, axis, limit, dir] = tuple;
+      if (action === 'rotation' && RPM_FLIP_BONES.has(boneName) && (axis === 'x' || axis === 'z')) {
+        const flippedDir = dir === '+' ? '-' : dir === '-' ? '+' : dir;
+        return [boneName, action, axis, -limit, flippedDir];
+      }
+      return tuple;
+    });
+  });
+
 // Build a cleanup frame containing only bones that have drifted from rest.
 // When all bones are clean (the common case) this returns an empty array and
 // no extra frame is pushed, so there is no phantom 350 ms pause.
 const buildPreSignReset = (ref) => {
+  const targets = ref.restTargets || FULL_REST_TARGETS;
   const frame = [];
-  for (const [boneName, axis, value] of FULL_REST_TARGETS) {
+  for (const [boneName, axis, value] of targets) {
     const bone = ref.avatar?.getObjectByName?.(boneName) || ref.bones?.[boneName];
     if (!bone) continue;
     if (Math.abs(bone.rotation[axis] - value) > 0.001) {
@@ -82,19 +105,23 @@ export function useSignAnimator(scene) {
     pending:        false,
     paused:         false,
     pauseUntil:     0,
-    animations:     [],   // FIFO of frames; see _step()
-    characters:     [],   // legacy hook expected by some sign functions
-    bones:          {},   // name → Three.Bone
-    avatar:         null, // scene root (so signs can use getObjectByName)
-    speedScale:     1,    // multiplied by BASE_SPEED
+    animations:     [],            // FIFO of frames; see _step()
+    characters:     [],            // legacy hook expected by some sign functions
+    bones:          {},            // name → Three.Bone
+    avatar:         null,          // scene root (so signs can use getObjectByName)
+    speedScale:     1,             // multiplied by BASE_SPEED
+    isRPM:          false,         // true when model uses mixamorig:BoneName format
+    restTargets:    FULL_REST_TARGETS,
     animate:        () => {},
   });
 
   // ── Bone discovery ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!scene) return;
-    ctrl.current.avatar = scene;
-    ctrl.current.bones  = buildBoneIndex(scene);
+    ctrl.current.avatar      = scene;
+    ctrl.current.bones       = buildBoneIndex(scene);
+    ctrl.current.isRPM       = detectRPM(ctrl.current.bones);
+    ctrl.current.restTargets = ctrl.current.isRPM ? FULL_REST_TARGETS_RPM : FULL_REST_TARGETS;
 
     // Drop any in-flight animation when the model swaps
     ctrl.current.animations.length = 0;
@@ -102,7 +129,7 @@ export function useSignAnimator(scene) {
 
     // Snap the arms into A-pose right away so the avatar never appears in
     // the raw T-pose bind.
-    snapToRestPose(ctrl.current);
+    snapToRestPose(ctrl.current, ctrl.current.restTargets);
   }, [scene]);
 
   // ── Bone resolver ──────────────────────────────────────────────────────────
@@ -227,6 +254,8 @@ export function useSignAnimator(scene) {
       if (!ctrl.current.pending) ctrl.current.pending = true;
     }
 
+    const prevLen = ctrl.current.animations.length;
+
     const tokens = trimmed.split(/\s+/);
     for (const token of tokens) {
       const upper = token.toUpperCase().replace(/[^A-Z]/g, '');
@@ -243,6 +272,14 @@ export function useSignAnimator(scene) {
       }
     }
 
+    // RPM arm bones have inverted local-X and local-Z vs XBot. Flip the rotation
+    // limits (and explicit directions) on all newly-added frames so signs that
+    // were calibrated for XBot produce the correct visual result on RPM models.
+    if (ctrl.current.isRPM && ctrl.current.animations.length > prevLen) {
+      const newFrames = ctrl.current.animations.splice(prevLen);
+      ctrl.current.animations.push(...flipRPMArmFrames(newFrames));
+    }
+
     return _waitForDrain();
   }, []);
 
@@ -255,7 +292,7 @@ export function useSignAnimator(scene) {
 
   const lowerArm = useCallback(async () => {
     if (!ctrl.current.avatar) return true;
-    defaultPose(ctrl.current);
+    defaultPose(ctrl.current, ctrl.current.restTargets);
     return _waitForDrain();
   }, []);
 

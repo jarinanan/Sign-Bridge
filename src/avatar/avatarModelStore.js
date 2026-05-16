@@ -2,10 +2,10 @@ import { create } from 'zustand';
 
 const STORAGE_KEY = 'signbridge-avatar-url';
 
-// Clear any previously stored model — Harry Potter is now the fixed model.
+// Migrate users who stored an old model URL — redirect them to the default.
 const STALE_URLS = new Set([
   '/remy.lite.glb', '/remy.opt.glb', '/remy.glb',
-  '/model.glb', '/model.xbot.glb', '/model.rpm.glb',
+  '/model.xbot.glb', '/model.rpm.glb', '/model.glb',
 ]);
 
 const getStoredUrl = () => {
