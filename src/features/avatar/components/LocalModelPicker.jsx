@@ -3,9 +3,8 @@ import { ChevronDown, User } from 'lucide-react';
 import { useAvatarModelStore } from '@/avatar/avatarModelStore';
 
 const PRESETS = [
-  { label: 'Remy',         url: '/remy.lite.glb' },
+  { label: 'Default',      url: '/model.glb' },
   { label: 'Harry Potter', url: '/ready_player_me_harry_potter.glb' },
-  { label: 'Classic',      url: '/model.glb' },
 ];
 
 const LocalModelPicker = () => {
@@ -14,7 +13,7 @@ const LocalModelPicker = () => {
 
   const activeLabel =
     PRESETS.find((p) => p.url === modelUrl)?.label ??
-    (modelUrl ? 'Custom' : 'Remy');
+    (modelUrl ? 'Custom' : 'Default');
 
   const choose = (url) => {
     setModelUrl(url);
@@ -43,7 +42,7 @@ const LocalModelPicker = () => {
                 key={p.url}
                 onClick={() => choose(p.url)}
                 className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                  (modelUrl ?? '/remy.glb') === p.url
+                  (modelUrl ?? '/model.glb') === p.url
                     ? 'text-[#2a7e75] font-semibold bg-[#eef7f6]'
                     : 'text-slate-700 hover:bg-slate-50'
                 }`}

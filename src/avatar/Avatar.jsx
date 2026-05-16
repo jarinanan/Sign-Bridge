@@ -14,7 +14,7 @@ import { useAvatarPlaybackStore } from './playbackStore';
 import { useSignAnimator } from './useSignAnimator';
 import { useAvatarModelStore } from './avatarModelStore';
 
-const LOCAL_MODEL = '/remy.lite.glb';
+const LOCAL_MODEL = '/ready_player_me_harry_potter.glb';
 
 const ANGLE_LIMITS = {
   minPolarAngle:  Math.PI / 2.6,
@@ -174,9 +174,6 @@ const Avatar = forwardRef((_, ref) => {
 });
 
 Avatar.displayName = 'Avatar';
-// Preload all bundled local models so switching between them feels instant
 useGLTF.preload(LOCAL_MODEL);
-useGLTF.preload('/model.glb');
-useGLTF.preload('/ready_player_me_harry_potter.glb');
 
 export default Avatar;

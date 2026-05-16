@@ -4,7 +4,6 @@ import AvatarDisplay from './AvatarDisplay';
 import FullscreenAvatar from './FullscreenAvatar';
 import PlayerControls from './PlayerControls';
 import Transcript from './Transcript';
-import { LocalModelPicker } from '@/features/avatar/components';
 
 /**
  * AvatarPanel - Right column with avatar, player controls, and transcript.
@@ -32,9 +31,8 @@ const AvatarPanel = ({
   return (
     <div className="lg:col-span-7 bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex flex-col">
       <div className="relative flex-1 min-h-112.5">
-        {/* Camera controls + model picker */}
+        {/* Camera controls */}
         <div className="absolute top-4 right-4 flex items-center gap-1.5 z-10">
-          <LocalModelPicker />
           <button
             onClick={() => avatarRef.current?.zoomIn()}
             className="bg-white p-2 rounded-lg shadow-sm text-slate-500 hover:text-slate-800 transition-colors"

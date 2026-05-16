@@ -16,30 +16,47 @@ const DEFAULT_PAUSE_MS = 350;
 //   mixamorig_RightArm  (underscore — gltfpack-optimised RPM export)
 //   RightArm_51         (no prefix + numeric suffix — some RPM exports)
 //   RightArm_03         (numeric suffix only)
+const indexBoneNode = (node, byName) => {
+  if (!node?.name) return;
+  const raw = node.name;
+  byName[raw] = node;
+
+  const bare = raw.replace(/_\d+$/, '');
+  byName[bare] = byName[bare] || node;
+
+  const noColon = bare.replace(/^mixamorig:/, 'mixamorig');
+  byName[noColon] = byName[noColon] || node;
+
+  const noUnderscore = bare.replace(/^mixamorig_/, 'mixamorig');
+  byName[noUnderscore] = byName[noUnderscore] || node;
+
+  if (!noColon.startsWith('mixamorig') && !noUnderscore.startsWith('mixamorig')) {
+    byName['mixamorig' + bare] = byName['mixamorig' + bare] || node;
+  }
+};
+
+// Bone-name lookup that normalises all common Mixamo naming variants into the
+// bare "mixamorigRightArm" form used by the sign animations:
+//   mixamorig:RightArm  (colon — standard Mixamo / RPM export)
+//   mixamorig_RightArm  (underscore — gltfpack-optimised RPM export)
+//   RightArm_51         (no prefix + numeric suffix — some RPM exports)
+//   RightArm_03         (numeric suffix only)
+// Two-pass strategy:
+//   1. isBone nodes via traverse (works for standard exports where isBone=true)
+//   2. SkinnedMesh.skeleton.bones directly (catches exports where isBone is not set)
 const buildBoneIndex = (scene) => {
   const byName = {};
+
   scene?.traverse?.((node) => {
-    if (!node?.isBone || !node.name) return;
-    const raw = node.name;
-    byName[raw] = node;
+    if (node.isBone) indexBoneNode(node, byName);
+  });
 
-    // Strip trailing numeric suffix (_03, _51, …) first
-    const bare = raw.replace(/_\d+$/, '');
-    byName[bare] = byName[bare] || node;
-
-    // colon prefix  →  bare:  mixamorig:RightArm  →  mixamorigRightArm
-    const noColon = bare.replace(/^mixamorig:/, 'mixamorig');
-    byName[noColon] = byName[noColon] || node;
-
-    // underscore prefix  →  bare:  mixamorig_RightArm  →  mixamorigRightArm
-    const noUnderscore = bare.replace(/^mixamorig_/, 'mixamorig');
-    byName[noUnderscore] = byName[noUnderscore] || node;
-
-    // no prefix at all (e.g. RightArm)  →  add mixamorig prefix
-    if (!noColon.startsWith('mixamorig') && !noUnderscore.startsWith('mixamorig')) {
-      byName['mixamorig' + bare] = byName['mixamorig' + bare] || node;
+  scene?.traverse?.((node) => {
+    if (node.isSkinnedMesh && node.skeleton) {
+      node.skeleton.bones.forEach((b) => indexBoneNode(b, byName));
     }
   });
+
   return byName;
 };
 
